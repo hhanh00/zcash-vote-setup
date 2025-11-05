@@ -1,9 +1,7 @@
 ts_authkey: tskey-auth-ENTER_VALID_KEY
-arch: aarch64
+uid: 501
 nodes:
   - name: nodeA
-    arch: x86_64
     port: 8000
   - name: nodeB
-    arch: aarch64
 datadir: ./data
