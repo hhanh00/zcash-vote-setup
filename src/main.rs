@@ -82,7 +82,7 @@ fn main() -> Result<()> {
         } else {
             "".to_string()
         };
-        writeln!(run_script, "docker run --privileged --name {dir} -it {port_mapping} -v .:/home/user -v ./tailscale-data:/var/lib/tailscale -e NODE={dir} -e TS_AUTHKEY={auth} hhanh00/zcash-vote-docker:{VERSION}")?;
+        writeln!(run_script, "docker run -d --privileged --name {dir} -it {port_mapping} -v .:/home/user -v ./tailscale-data:/var/lib/tailscale -e NODE={dir} -e TS_AUTHKEY={auth} hhanh00/zcash-vote-docker:{VERSION}")?;
     }
 
     Ok(())
