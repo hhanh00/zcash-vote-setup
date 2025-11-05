@@ -10,11 +10,13 @@ pub enum Arch {
 pub struct Node {
     pub name: String,
     pub arch: Arch,
+    pub port: Option<u16>,
 }
 
 #[derive(Serialize, Deserialize, Debug)]
 pub struct Config {
-    ts_authkey: String,
-    arch: Arch,
-    nodes: Vec<Node>,
+    pub ts_authkey: String,
+    pub arch: Arch,
+    pub nodes: Vec<Node>,
+    pub datadir: String,
 }

@@ -1,0 +1,11 @@
+[default]
+address = "0.0.0.0"
+port = 8000
+
+[default.limits]
+bytes = "64 kB"
+
+[default.custom]
+data_path = "data"
+db_path = "db/vote.db"
+cometbft_port = 26658
