@@ -1,18 +1,27 @@
-# Setup a cluster of Zcash Vote Validators
+# Server
 
-1. Open an account on Tailscale
-1. Generate a *reusable* key and write down the *secret* key (not the key id!)
-1. Edit `config.yml`
-    - Set the tailscale key as `ts_authkey`
-    - Set `uid` as the user id of the current user (obtained by running `id`)
-    - Add nodes
-        - Each node must have a unique name
-        - The HTTP election port may optionally be exported
-1. Pull the docker image
-    `docker pull hhanh00:zcash-vote-docker:1.2.1`
-1. Run `cargo run`
+Edit `server_config.yml`
 
-A directory per node is created. Inside each directory, the `run.sh` starts a
-container for the node. They can be moved to different machines or run on the
-same one.
+Run `cargo r --bin server`
 
+# Node
+
+Run `cargo r --bin client <server_url> <node name`
+Repeat with each node. Once every node is added
+the configuration is completed.
+Repeat the same command on every node once to get
+the configuration.
+
+Ex:
+```
+# With three nodes
+client http://localhost:9000 node1
+client http://localhost:9000 node2
+client http://localhost:9000 node3
+# node 3 has its configuration, but node1 and node2 have
+# to be called again
+client http://localhost:9000 node1
+client http://localhost:9000 node2
+```
+
+Run `bash run.sh`

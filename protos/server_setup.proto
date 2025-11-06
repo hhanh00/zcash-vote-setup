@@ -1,0 +1,28 @@
+syntax = "proto3";
+package vote_setup.rpc;
+
+message Empty {}
+
+message TSAuthKey {
+    string key = 1;
+}
+
+message NodeDef {
+    string name = 1;
+    string pubkey = 2;
+    string address = 3;
+    string id = 4;
+}
+
+message NodeConfig {
+    bytes votedb = 1;
+    string config = 2;
+    string genesis = 3;
+    string run = 4;
+    uint32 remaining = 5;
+}
+
+service VoteServerSetup {
+    rpc GetTSAuthKey(Empty) returns (TSAuthKey) {}
+    rpc PutNodeDef(NodeDef) returns (NodeConfig) {}
+}

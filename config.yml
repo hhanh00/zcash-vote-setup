@@ -1,7 +1,0 @@
-ts_authkey: tskey-auth-ENTER_VALID_KEY
-uid: 501
-nodes:
-  - name: nodeA
-    port: 8000
-  - name: nodeB
-datadir: ./data

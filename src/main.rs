@@ -15,6 +15,7 @@ use toml_edit::DocumentMut;
 use crate::config::Config;
 
 pub mod config;
+pub mod client;
 
 pub const VERSION: &str = "1.2.1";
 
