@@ -8,6 +8,7 @@ use serde_json::Value;
 use sqlx::sqlite::SqliteConnectOptions;
 use sqlx::{Connection, SqliteConnection};
 use tonic::{Request, transport::Channel};
+use tracing::info;
 use zcash_vote_setup::Validator;
 use zcash_vote_setup::rpc::{Empty, NodeDef, TsAuthKey};
 use zcash_vote_setup::util::run_command_in_container;
@@ -21,6 +22,15 @@ pub struct ClientConfig {
 
 #[tokio::main]
 pub async fn main() -> Result<()> {
+    rustls::crypto::aws_lc_rs::default_provider()
+    .install_default()
+    .unwrap();
+    let subscriber = tracing_subscriber::fmt()
+        .with_ansi(false)
+        .compact()
+        .finish();
+    let _ = tracing::subscriber::set_global_default(subscriber);
+
     let args: Vec<String> = env::args().collect();
     if args.len() != 3 {
         anyhow::bail!("<server url> <node name>");
@@ -28,6 +38,7 @@ pub async fn main() -> Result<()> {
     let url: String = args[1].clone();
     let name = args[2].clone();
     let uid = users::get_current_uid();
+    let username = users::get_current_username().unwrap().to_string_lossy().to_string();
     let channel = Channel::from_shared(url)?;
     let mut client = Client::connect(channel).await?;
     let auth_key = get_authkey(&mut client).await?.key;
@@ -44,14 +55,16 @@ pub async fn main() -> Result<()> {
         run_command_in_container(
             &name,
             0,
+            &username,
             &auth_key,
             "tailscaled & sleep 5; tailscale up --auth-key=$TS_AUTHKEY --hostname=$NODE",
         )?;
     }
-    if !exists(".cometbft/config/node_key.json")? {
-        run_command_in_container(&name, uid, &auth_key, "cometbft init")?;
+    if !exists("home/.cometbft/config/node_key.json")? {
+        info!("Initializing new cometbft node");
+        run_command_in_container(&name, uid, &username, &auth_key, "cometbft init")?;
     }
-    let node_id = run_command_in_container(&name, uid, &auth_key, "cometbft show-node-id")?;
+    let node_id = run_command_in_container(&name, uid, &username, &auth_key, "cometbft show-node-id")?;
 
     let genesis_file = File::open("home/.cometbft/config/genesis.json")?;
     let genesis: Value = serde_json::from_reader(genesis_file)?;
@@ -66,6 +79,7 @@ pub async fn main() -> Result<()> {
             id: node_id,
         };
 
+        info!("Node config: {:?}", &node);
         let config = client.put_node_def(Request::new(node)).await?.into_inner();
         if config.remaining == 0 {
             let mut votedb_file = File::create("home/db/vote.db")?;

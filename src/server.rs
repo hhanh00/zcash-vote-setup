@@ -22,6 +22,7 @@ use sqlx::{
 };
 use toml_edit::DocumentMut;
 use tonic::{Request, Response, Status, transport::Server};
+use tracing::info;
 use zcash_vote_setup::{PubKey, VERSION, Validator, rpc::*, util::run_command_in_container};
 
 #[derive(Serialize, Deserialize, Debug)]
@@ -179,7 +180,13 @@ impl VoteServerImpl {
 
 #[tokio::main]
 pub async fn main() -> Result<()> {
+    let subscriber = tracing_subscriber::fmt()
+        .with_ansi(false)
+        .compact()
+        .finish();
+    let _ = tracing::subscriber::set_global_default(subscriber);
     let uid = users::get_current_uid();
+    let username = users::get_current_username().unwrap().to_string_lossy().to_string();
     let config: ServerConfig = Figment::new()
         .merge(Yaml::file("server_config.yml"))
         .extract()?;
@@ -215,8 +222,8 @@ pub async fn main() -> Result<()> {
 
     // Store the content of vote.db in setup.db
     if !is_imported {
-        // import the electio data into the vote.db
-        let r = run_command_in_container("", uid, "", "/zcash-vote-server/zcash-vote-server -q")?;
+        // import the election data into the vote.db
+        let r = run_command_in_container("", uid, &username, "", "/zcash-vote-server/zcash-vote-server -q")?;
         println!("{r}");
 
         let mut vote_db_file = File::open("home/db/vote.db")?;
@@ -237,6 +244,7 @@ pub async fn main() -> Result<()> {
     };
     let server =
         zcash_vote_setup::rpc::vote_server_setup_server::VoteServerSetupServer::new(handler);
+    info!("Listening at {addr}");
     Server::builder().add_service(server).serve(addr).await?;
 
     Ok(())
