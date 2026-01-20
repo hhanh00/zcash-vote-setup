@@ -1,0 +1,39 @@
+name: Build and Release Client
+
+on:
+  workflow_dispatch:
+  pull_request:
+    branches:
+    - main
+  push:
+    tags:
+      - client-v*
+
+jobs:
+  build:
+    runs-on: ${{ matrix.os }}
+    strategy:
+      matrix:
+        include:
+          - os: ubuntu-latest
+            arch: x86_64
+          - os: ubuntu-24.04-arm
+            arch: aarch64
+    steps:
+      - name: Install RUST
+        uses: dtolnay/rust-toolchain@stable
+      - name: Checkout code
+        uses: actions/checkout@v4
+      - name: Build Linux
+        run: |
+          sudo apt-get update
+          sudo apt-get install -y protobuf-compiler
+          cargo b --release --bin client
+          mv target/release/client client-${{ matrix.arch }}
+      - name: Create Release
+        if: startsWith(github.ref_name, 'client-v')
+        uses: softprops/action-gh-release@v2
+        with:
+          files: client-${{ matrix.arch }}
+        env:
+          GITHUB_TOKEN: ${{ secrets.GITHUB_TOKEN }}
