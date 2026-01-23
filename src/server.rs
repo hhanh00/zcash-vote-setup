@@ -33,11 +33,13 @@ pub struct ServerConfig {
     pub workdir: String,
     pub peers: Vec<String>,
     pub port: u16,
+    pub password: String,
 }
 
 struct VoteServerImpl {
     chainid: String,
     auth_key: String,
+    password: String,
     peers: HashSet<String>,
     pool: SqlitePool,
 }
@@ -59,8 +61,11 @@ impl zcash_vote_setup::rpc::vote_server_setup_server::VoteServerSetup for VoteSe
         request: Request<NodeDef>,
     ) -> Result<Response<NodeConfig>, Status> {
         let run = async move {
-            let mut connection = self.db_connect().await?;
             let node_def = request.into_inner();
+            if node_def.password != self.password {
+                anyhow::bail!("Invalid password");
+            }
+            let mut connection = self.db_connect().await?;
             if !self.peers.contains(&node_def.name) {
                 anyhow::bail!("Node is not part of the config");
             }
@@ -107,8 +112,12 @@ impl zcash_vote_setup::rpc::vote_server_setup_server::VoteServerSetup for VoteSe
         Ok(Response::new(n))
     }
 
-    async fn reset(&self, _request: Request<Empty>) -> Result<Response<NodeConfig>, Status> {
+    async fn reset(&self, request: Request<NodeDef>) -> Result<Response<NodeConfig>, Status> {
         let run = async move {
+            let node_def = request.into_inner();
+            if node_def.password != self.password {
+                anyhow::bail!("Invalid password");
+            }
             let mut connection = self.db_connect().await?;
             let n = build_node_config_update(&mut connection).await?;
             Ok::<_, anyhow::Error>(n)
@@ -268,6 +277,7 @@ pub async fn main() -> Result<()> {
     let handler = VoteServerImpl {
         chainid: config.chainid,
         auth_key: config.auth,
+        password: config.password,
         peers: config.peers.into_iter().collect(),
         pool: db,
     };

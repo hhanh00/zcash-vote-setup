@@ -12,6 +12,7 @@ message NodeDef {
     string pubkey = 2;
     string address = 3;
     string id = 4;
+    string password = 5;
 }
 
 message NodeConfig {
@@ -25,5 +26,5 @@ message NodeConfig {
 service VoteServerSetup {
     rpc GetTSAuthKey(Empty) returns (TSAuthKey) {}
     rpc PutNodeDef(NodeDef) returns (NodeConfig) {}
-    rpc Reset(Empty) returns (NodeConfig) {}
+    rpc Reset(NodeDef) returns (NodeConfig) {}
 }

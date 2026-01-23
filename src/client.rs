@@ -25,6 +25,8 @@ pub struct Config {
     url: String,
     #[clap(short, long)]
     nodename: String,
+    #[clap(short, long)]
+    password: String,
 }
 
 #[derive(Subcommand, Clone, Debug)]
@@ -102,6 +104,7 @@ pub async fn main() -> Result<()> {
                     pubkey: validator.pub_key.value.clone(),
                     address: validator.address.clone(),
                     id: node_id,
+                    password: config.password,
                 };
 
                 info!("Node config: {:?}", &node);
@@ -126,7 +129,11 @@ pub async fn main() -> Result<()> {
         }
 
         Command::Reset => {
-            let node_config = client.reset(Request::new(Empty {})).await?.into_inner();
+            let node_def = NodeDef {
+                password: config.password,
+                ..Default::default()
+            };
+            let node_config = client.reset(Request::new(node_def)).await?.into_inner();
             let NodeConfig { votedb, .. } = node_config;
             let mut votedb_file = File::create("home/db/vote.db")?;
             votedb_file.write_all(&votedb)?;
