@@ -23,14 +23,13 @@ pub struct Config {
     command: Command,
     #[clap(short, long)]
     url: String,
+    #[clap(short, long)]
+    nodename: String,
 }
 
 #[derive(Subcommand, Clone, Debug)]
 pub enum Command {
-    Setup {
-        #[clap(short, long)]
-        nodename: String,
-    },
+    Setup,
     Reset,
 }
 
@@ -59,11 +58,12 @@ pub async fn main() -> Result<()> {
     let channel = Channel::from_shared(config.url)?;
     let mut client = Client::connect(channel).await?;
     let auth_key = get_authkey(&mut client).await?.key;
+    let name = &config.nodename;
 
     match config.command {
-        Command::Setup { nodename: name } => {
-            create_dir_all(&name)?;
-            env::set_current_dir(&name)?;
+        Command::Setup => {
+            create_dir_all(name)?;
+            env::set_current_dir(name)?;
             create_dir_all("tailscale-data")?;
             create_dir_all("home/data")?;
             create_dir_all("home/db")?;
@@ -72,7 +72,7 @@ pub async fn main() -> Result<()> {
                 // Connect to tailscale
                 // User must be root (in the container)
                 run_command_in_container(
-                    &name,
+                    name,
                     0,
                     &username,
                     &auth_key,
@@ -81,10 +81,10 @@ pub async fn main() -> Result<()> {
             }
             if !exists("home/.cometbft/config/node_key.json")? {
                 info!("Initializing new cometbft node");
-                run_command_in_container(&name, uid, &username, &auth_key, "cometbft init")?;
+                run_command_in_container(name, uid, &username, &auth_key, "cometbft init")?;
             }
             let node_id = run_command_in_container(
-                &name,
+                name,
                 uid,
                 &username,
                 &auth_key,
@@ -131,6 +131,7 @@ pub async fn main() -> Result<()> {
             let mut votedb_file = File::create("home/db/vote.db")?;
             votedb_file.write_all(&votedb)?;
             create_data_files().await?;
+            run_command_in_container(name, uid, &username, &auth_key, "cometbft unsafe-reset-all")?;
         }
     }
     Ok(())
