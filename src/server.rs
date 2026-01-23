@@ -106,6 +106,26 @@ impl zcash_vote_setup::rpc::vote_server_setup_server::VoteServerSetup for VoteSe
         let n = run.await.map_err(|e| Status::internal(e.to_string()))?;
         Ok(Response::new(n))
     }
+
+    async fn reset(&self, _request: Request<Empty>) -> Result<Response<NodeConfig>, Status> {
+        let run = async move {
+            let mut connection = self.db_connect().await?;
+            let n = build_node_config_update(&mut connection).await?;
+            Ok::<_, anyhow::Error>(n)
+        };
+        let n = run.await.map_err(|e| Status::internal(e.to_string()))?;
+        Ok(Response::new(n))
+    }
+}
+
+pub async fn build_node_config_update(connection: &mut SqliteConnection) -> Result<NodeConfig> {
+    let (votedb,): (Vec<u8>,) = sqlx::query_as("SELECT data FROM votedb")
+        .fetch_one(&mut *connection)
+        .await?;
+    Ok(NodeConfig {
+        votedb,
+        ..NodeConfig::default()
+    })
 }
 
 pub async fn build_node_config(
@@ -186,7 +206,10 @@ pub async fn main() -> Result<()> {
         .finish();
     let _ = tracing::subscriber::set_global_default(subscriber);
     let uid = users::get_current_uid();
-    let username = users::get_current_username().unwrap().to_string_lossy().to_string();
+    let username = users::get_current_username()
+        .unwrap()
+        .to_string_lossy()
+        .to_string();
     let config: ServerConfig = Figment::new()
         .merge(Yaml::file("server_config.yml"))
         .extract()?;
@@ -223,7 +246,13 @@ pub async fn main() -> Result<()> {
     // Store the content of vote.db in setup.db
     if !is_imported {
         // import the election data into the vote.db
-        let r = run_command_in_container("", uid, &username, "", "/zcash-vote-server/zcash-vote-server -q")?;
+        let r = run_command_in_container(
+            "",
+            uid,
+            &username,
+            "",
+            "/zcash-vote-server/zcash-vote-server -q",
+        )?;
         println!("{r}");
 
         let mut vote_db_file = File::open("home/db/vote.db")?;
