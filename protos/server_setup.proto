@@ -3,6 +3,10 @@ package vote_setup.rpc;
 
 message Empty {}
 
+message Auth {
+    string password = 1;
+}
+
 message TSAuthKey {
     string key = 1;
 }
@@ -24,7 +28,7 @@ message NodeConfig {
 }
 
 service VoteServerSetup {
-    rpc GetTSAuthKey(Empty) returns (TSAuthKey) {}
+    rpc GetTSAuthKey(Auth) returns (TSAuthKey) {}
     rpc PutNodeDef(NodeDef) returns (NodeConfig) {}
     rpc Reset(NodeDef) returns (NodeConfig) {}
 }

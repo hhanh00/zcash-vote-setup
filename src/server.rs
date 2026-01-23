@@ -46,14 +46,20 @@ struct VoteServerImpl {
 
 #[tonic::async_trait]
 impl zcash_vote_setup::rpc::vote_server_setup_server::VoteServerSetup for VoteServerImpl {
-    async fn get_ts_auth_key(
-        &self,
-        _request: Request<Empty>,
-    ) -> Result<Response<TsAuthKey>, Status> {
-        let rep = Response::new(TsAuthKey {
-            key: self.auth_key.clone(),
-        });
-        Ok(rep)
+    async fn get_ts_auth_key(&self, request: Request<Auth>) -> Result<Response<TsAuthKey>, Status> {
+        let run = async move {
+            let request = request.into_inner();
+            let Auth { password } = request;
+            if password != self.password {
+                anyhow::bail!("Invalid password");
+            }
+            let rep = TsAuthKey {
+                key: self.auth_key.clone(),
+            };
+            Ok::<_, anyhow::Error>(rep)
+        };
+        let rep = run.await.map_err(|e| Status::internal(e.to_string()))?;
+        Ok(Response::new(rep))
     }
 
     async fn put_node_def(

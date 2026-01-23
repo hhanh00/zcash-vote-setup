@@ -12,7 +12,7 @@ use sqlx::{Connection, SqliteConnection};
 use tonic::{Request, transport::Channel};
 use tracing::info;
 use zcash_vote_setup::Validator;
-use zcash_vote_setup::rpc::{Empty, NodeConfig, NodeDef, TsAuthKey};
+use zcash_vote_setup::rpc::{Auth, NodeConfig, NodeDef, TsAuthKey};
 use zcash_vote_setup::util::run_command_in_container;
 
 pub type Client = zcash_vote_setup::rpc::vote_server_setup_client::VoteServerSetupClient<Channel>;
@@ -59,7 +59,7 @@ pub async fn main() -> Result<()> {
         .to_string();
     let channel = Channel::from_shared(config.url)?;
     let mut client = Client::connect(channel).await?;
-    let auth_key = get_authkey(&mut client).await?.key;
+    let auth_key = get_authkey(&mut client, &config.password).await?.key;
     let name = &config.nodename;
 
     match config.command {
@@ -129,6 +129,7 @@ pub async fn main() -> Result<()> {
         }
 
         Command::Reset => {
+            env::set_current_dir(name)?;
             let node_def = NodeDef {
                 password: config.password,
                 ..Default::default()
@@ -161,9 +162,11 @@ async fn create_data_files() -> Result<()> {
     Ok(())
 }
 
-pub async fn get_authkey(client: &mut Client) -> Result<TsAuthKey> {
+pub async fn get_authkey(client: &mut Client, password: &str) -> Result<TsAuthKey> {
     let rep = client
-        .get_ts_auth_key(Request::new(Empty {}))
+        .get_ts_auth_key(Request::new(Auth {
+            password: password.to_string(),
+        }))
         .await?
         .into_inner();
     Ok(rep)

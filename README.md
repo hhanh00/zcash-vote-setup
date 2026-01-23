@@ -25,3 +25,9 @@ client http://localhost:9000 node2
 ```
 
 Run `bash run.sh`
+
+## To reset
+
+- remove the contents of `work/home/data,db`
+- delete the content of the table votedb in `setup.db`
+- rerun the server
