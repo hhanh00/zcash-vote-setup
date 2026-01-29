@@ -1,10 +1,10 @@
-chainid: zcash-vote-y3DFf
-auth: tskey-auth-ENTER-KEY
+chainid: zcv-nu72
+auth: tskey-auth-kJm4YdgEze11CNTRL-2WsLzHim9McwuE3VyRXcLcGeAkYXkG48D
 peers:
-  - node1
-  - node2
-  - node3
-  - node4
+  - name: n1
+    password: 5Ll4mckk
+  - name: n2
+    password: P6Wfn4vt
 datadir: data
 workdir: work
 port: 9000

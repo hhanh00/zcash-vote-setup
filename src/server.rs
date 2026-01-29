@@ -1,5 +1,5 @@
 use std::{
-    collections::HashSet,
+    collections::HashMap,
     env,
     fs::{self, File, create_dir_all},
     io::Read,
@@ -31,14 +31,20 @@ pub struct ServerConfig {
     pub auth: String,
     pub datadir: String,
     pub workdir: String,
-    pub peers: Vec<String>,
+    pub peers: Vec<Peer>,
     pub port: u16,
+}
+
+#[derive(Serialize, Deserialize, Debug)]
+pub struct Peer {
+    pub name: String,
+    pub password: String,
 }
 
 struct VoteServerImpl {
     chainid: String,
     auth_key: String,
-    peers: HashSet<String>,
+    peers: HashMap<String, String>,
     pool: SqlitePool,
 }
 
@@ -46,12 +52,22 @@ struct VoteServerImpl {
 impl zcash_vote_setup::rpc::vote_server_setup_server::VoteServerSetup for VoteServerImpl {
     async fn get_ts_auth_key(
         &self,
-        _request: Request<Empty>,
+        request: Request<AuthReq>,
     ) -> Result<Response<TsAuthKey>, Status> {
-        let rep = Response::new(TsAuthKey {
-            key: self.auth_key.clone(),
-        });
-        Ok(rep)
+        let res = async move {
+            let req = request.into_inner();
+            let name = self
+                .peers
+                .get(&req.password)
+                .ok_or(anyhow::anyhow!("Invalid password"))?
+                .clone();
+            let rep = Response::new(TsAuthKey {
+                name,
+                key: self.auth_key.clone(),
+            });
+            Ok(rep)
+        };
+        res.await.map_err(to_status)
     }
 
     async fn put_node_def(
@@ -61,9 +77,12 @@ impl zcash_vote_setup::rpc::vote_server_setup_server::VoteServerSetup for VoteSe
         let run = async move {
             let mut connection = self.db_connect().await?;
             let node_def = request.into_inner();
-            if !self.peers.contains(&node_def.name) {
-                anyhow::bail!("Node is not part of the config");
-            }
+
+            let name = self
+                .peers
+                .get(&node_def.password)
+                .ok_or(anyhow::anyhow!("Invalid password"))?
+                .clone();
 
             let validator = Validator {
                 address: node_def.address,
@@ -72,13 +91,13 @@ impl zcash_vote_setup::rpc::vote_server_setup_server::VoteServerSetup for VoteSe
                     value: node_def.pubkey,
                 },
                 power: "10".to_string(),
-                name: node_def.name.clone(),
+                name: name.clone(),
             };
             query(
                 "INSERT INTO nodes(name, id, validator)
             VALUES (?1, ?2, ?3) ON CONFLICT DO NOTHING",
             )
-            .bind(&node_def.name)
+            .bind(&name)
             .bind(node_def.id.trim_end())
             .bind(serde_json::to_string(&validator).unwrap())
             .execute(&mut connection)
@@ -88,13 +107,7 @@ impl zcash_vote_setup::rpc::vote_server_setup_server::VoteServerSetup for VoteSe
                 .fetch_one(&mut connection)
                 .await?;
             let n = if count == self.peers.len() as u32 {
-                build_node_config(
-                    &mut connection,
-                    &node_def.name,
-                    &self.auth_key,
-                    &self.chainid,
-                )
-                .await?
+                build_node_config(&mut connection, &name, &self.auth_key, &self.chainid).await?
             } else {
                 NodeConfig {
                     remaining: self.peers.len() as u32 - count,
@@ -185,8 +198,13 @@ pub async fn main() -> Result<()> {
         .compact()
         .finish();
     let _ = tracing::subscriber::set_global_default(subscriber);
+
     let uid = users::get_current_uid();
-    let username = users::get_current_username().unwrap().to_string_lossy().to_string();
+    let username = users::get_current_username()
+        .unwrap()
+        .to_string_lossy()
+        .to_string();
+
     let config: ServerConfig = Figment::new()
         .merge(Yaml::file("server_config.yml"))
         .extract()?;
@@ -223,7 +241,13 @@ pub async fn main() -> Result<()> {
     // Store the content of vote.db in setup.db
     if !is_imported {
         // import the election data into the vote.db
-        let r = run_command_in_container("", uid, &username, "", "/zcash-vote-server/zcash-vote-server -q")?;
+        let r = run_command_in_container(
+            "",
+            uid,
+            &username,
+            "",
+            "/zcash-vote-server/zcash-vote-server -q",
+        )?;
         println!("{r}");
 
         let mut vote_db_file = File::open("home/db/vote.db")?;
@@ -239,7 +263,11 @@ pub async fn main() -> Result<()> {
     let handler = VoteServerImpl {
         chainid: config.chainid,
         auth_key: config.auth,
-        peers: config.peers.into_iter().collect(),
+        peers: config
+            .peers
+            .into_iter()
+            .map(|p| (p.password, p.name))
+            .collect(),
         pool: db,
     };
     let server =
@@ -267,4 +295,8 @@ pub async fn create_schema(connection: &mut SqliteConnection) -> Result<()> {
     .execute(&mut *connection)
     .await?;
     Ok(())
+}
+
+fn to_status(e: anyhow::Error) -> tonic::Status {
+    tonic::Status::internal(e.to_string())
 }
